@@ -44,6 +44,22 @@ class CommandParserTest {
     }
 
     @Test
+    fun `parse followHost from natural phrases`() {
+        val phrases = listOf(
+            "@winwithpickr pick 7 from replies who follow me",
+            "@winwithpickr pick from replies must follow",
+            "@winwithpickr pick must be following",
+            "@winwithpickr pick followers only",
+            "@winwithpickr pick from replies following me",
+        )
+        for (phrase in phrases) {
+            val cmd = CommandParser.parse(phrase, "winwithpickr")
+            assertNotNull(cmd, "Expected followHost for: $phrase")
+            assertTrue(cmd.conditions.followHost, "followHost should be true for: $phrase")
+        }
+    }
+
+    @Test
     fun `returns null for unrelated text`() {
         assertNull(CommandParser.parse("Hello world", "winwithpickr"))
     }

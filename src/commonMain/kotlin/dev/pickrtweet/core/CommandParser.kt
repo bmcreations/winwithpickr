@@ -35,6 +35,10 @@ object CommandParser {
         val like    = "likes"    in sources
 
         val followHost = lower.contains("followers only")
+            || lower.contains("who follow me")
+            || lower.contains("must follow")
+            || lower.contains("must be following")
+            || lower.contains("following me")
         val followAccounts = followAccountsRegex.find(lower)
             ?.groupValues?.get(1)?.split(Regex("\\s+"))
             ?.filter { it.startsWith("@") && it.drop(1).lowercase() != botHandle.lowercase() }
