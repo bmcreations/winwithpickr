@@ -19,7 +19,8 @@ object CommandParser {
     )
 
     fun parse(text: String, botHandle: String): ParsedCommand? {
-        val lower = text.lowercase()
+        // Strip the bot handle so "pickr" inside "@winwithpickr" doesn't false-positive
+        val lower = text.lowercase().replace("@${botHandle.lowercase()}", "")
         val hasPick  = lower.contains("pick")
         val hasWatch = lower.contains("watch")
         if (!hasPick && !hasWatch) return null
