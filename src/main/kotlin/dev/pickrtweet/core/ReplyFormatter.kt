@@ -26,8 +26,8 @@ object ReplyFormatter {
         }
         appendLine()
         val partialNote = if (followHostPartial) " \u00B7 \u26A0\uFE0F follower check partial" else ""
-        val permalink   = if (!tierConfig.watermark) " \u00B7 $appBaseUrl/r/$giveawayId" else ""
-        append("Pool: ${poolSize.fmt()} \u00B7 Seed: $seed$partialNote$permalink")
+        appendLine("Pool: ${poolSize.fmt()} \u00B7 Seed: $seed$partialNote")
+        append("\uD83D\uDD17 $appBaseUrl/r/$giveawayId")
         if (tierConfig.watermark) {
             appendLine()
             append("Powered by @winwithpickr")
