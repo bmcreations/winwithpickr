@@ -1,0 +1,17 @@
+[versions]
+kotlin = "2.0.21"
+coroutines = "1.9.0"
+serialization = "1.7.3"
+datetime = "0.6.1"
+mockk = "1.13.13"
+
+[libraries]
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+kotlinx-datetime           = { module = "org.jetbrains.kotlinx:kotlinx-datetime",            version.ref = "datetime" }
+kotlinx-coroutines-core    = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core",     version.ref = "coroutines" }
+kotlin-test                = { module = "org.jetbrains.kotlin:kotlin-test",                   version.ref = "kotlin" }
+mockk                      = { module = "io.mockk:mockk",                                    version.ref = "mockk" }
+
+[plugins]
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
