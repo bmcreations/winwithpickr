@@ -7,7 +7,7 @@ class CommandParserTest {
 
     @Test
     fun `parse basic pick command`() {
-        val cmd = CommandParser.parse("@pickrbot pick", "pickrbot")
+        val cmd = CommandParser.parse("@winwithpickr pick", "winwithpickr")
         assertNotNull(cmd)
         assertEquals(1, cmd.winners)
         assertTrue(cmd.conditions.reply)
@@ -16,14 +16,14 @@ class CommandParserTest {
 
     @Test
     fun `parse pick with winner count`() {
-        val cmd = CommandParser.parse("@pickrbot pick 3", "pickrbot")
+        val cmd = CommandParser.parse("@winwithpickr pick 3", "winwithpickr")
         assertNotNull(cmd)
         assertEquals(3, cmd.winners)
     }
 
     @Test
     fun `parse pick from retweets`() {
-        val cmd = CommandParser.parse("@pickrbot pick from retweets", "pickrbot")
+        val cmd = CommandParser.parse("@winwithpickr pick from retweets", "winwithpickr")
         assertNotNull(cmd)
         assertTrue(cmd.conditions.retweet)
         assertFalse(cmd.conditions.reply)
@@ -31,7 +31,7 @@ class CommandParserTest {
 
     @Test
     fun `parse watch command`() {
-        val cmd = CommandParser.parse("@pickrbot watch", "pickrbot")
+        val cmd = CommandParser.parse("@winwithpickr watch", "winwithpickr")
         assertNotNull(cmd)
         assertEquals(TriggerMode.WATCH, cmd.triggerMode)
     }
@@ -45,6 +45,6 @@ class CommandParserTest {
 
     @Test
     fun `returns null for unrelated text`() {
-        assertNull(CommandParser.parse("Hello world", "pickrbot"))
+        assertNull(CommandParser.parse("Hello world", "winwithpickr"))
     }
 }

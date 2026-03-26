@@ -30,7 +30,7 @@ object ReplyFormatter {
         append("Pool: ${poolSize.fmt()} \u00B7 Seed: $seed$partialNote$permalink")
         if (tierConfig.watermark) {
             appendLine()
-            append("Powered by @pickrbot")
+            append("Powered by @winwithpickr")
         }
     }
 
@@ -70,7 +70,7 @@ object ReplyFormatter {
     fun followerGateReply(handle: String, tweetId: String, xId: String, secret: String, baseUrl: String) =
         "Hey @$handle \u2014 follower verification requires Pro.\n\n" +
         "Upgrade: ${upgradeUrl(xId, tweetId, "pro", secret, baseUrl)}\n\n" +
-        "To pick without it: \"@pickrbot pick from replies\""
+        "To pick without it: \"@winwithpickr pick from replies\""
 
     fun upgradeUrl(xId: String, tweetId: String, plan: String, secret: String, baseUrl: String): String {
         val payload = "$xId:$tweetId:$plan"
