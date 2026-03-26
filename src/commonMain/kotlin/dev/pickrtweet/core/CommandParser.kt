@@ -8,7 +8,7 @@ object CommandParser {
 
     private val winnersRegex        = Regex("""(?:pick|watch)\s+(\d+)""", RegexOption.IGNORE_CASE)
     private val fromRegex           = Regex("""from\s+([\w+]+)""", RegexOption.IGNORE_CASE)
-    private val followAccountsRegex = Regex("""follow\s+((?:@\w+\s*)+)""", RegexOption.IGNORE_CASE)
+    private val followAccountsRegex = Regex("""follow(?:ing|er|ers)?\s+((?:@\w+\s*)+)""", RegexOption.IGNORE_CASE)
     private val scheduledRegex      = Regex("""in\s+(\d+)(h|d)""", RegexOption.IGNORE_CASE)
 
     val TRIGGER_PHRASES = listOf(
@@ -34,15 +34,14 @@ object CommandParser {
         val retweet = "retweets" in sources
         val like    = "likes"    in sources
 
-        val followHost = lower.contains("followers only")
-            || lower.contains("who follow me")
-            || lower.contains("must follow")
-            || lower.contains("must be following")
-            || lower.contains("following me")
         val followAccounts = followAccountsRegex.find(lower)
             ?.groupValues?.get(1)?.split(Regex("\\s+"))
             ?.filter { it.startsWith("@") && it.drop(1).lowercase() != botHandle.lowercase() }
             ?.map { it.drop(1) } ?: emptyList()
+
+        // followHost = follow-language exists that ISN'T captured by followAccounts
+        val hasFollowLanguage = Regex("""follow(?:er|ers|ing)?""").containsMatchIn(lower)
+        val followHost = hasFollowLanguage && followAccounts.isEmpty()
 
         val scheduledDelayMs = if (triggerMode == TriggerMode.IMMEDIATE) {
             scheduledRegex.find(lower)?.let { m ->
