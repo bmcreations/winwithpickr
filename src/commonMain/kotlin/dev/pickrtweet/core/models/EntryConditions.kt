@@ -11,4 +11,6 @@ data class EntryConditions(
     val followAccounts: List<String> = emptyList(),
     val minAccountAgeDays: Int = 0,
     val minFollowers: Int = 0,
+    val requiredHashtag: String? = null,
+    val minTags: Int = 0,
 )

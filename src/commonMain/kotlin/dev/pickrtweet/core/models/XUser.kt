@@ -11,6 +11,7 @@ data class XUser(
     @SerialName("created_at")        val createdAt: String? = null,
     @SerialName("profile_image_url") val profileImageUrl: String? = null,
     val description: String? = null,
+    @kotlinx.serialization.Transient val replyText: String? = null,
 )
 
 @Serializable

@@ -29,6 +29,7 @@ class PoolBuilder(
         conditions: EntryConditions,
         tierConfig: TierConfig,
         giveawayId: String,
+        excludeHandles: Set<String> = emptySet(),
     ): PoolResult {
         val maxEntries = tierConfig.maxEntries
         val candidates = mutableMapOf<String, XUser>()
@@ -72,7 +73,32 @@ class PoolBuilder(
             )
         }
 
-        // 4. Fraud filter (Business only)
+        // 4. Required hashtag filter (all tiers)
+        if (conditions.requiredHashtag != null) {
+            val tag = "#${conditions.requiredHashtag!!.lowercase()}"
+            candidates.entries.removeAll { (_, user) ->
+                user.replyText?.lowercase()?.contains(tag) != true
+            }
+            auditLog?.logStep(giveawayId, "hashtag_filter", candidates.size, "required=$tag")
+        }
+
+        // 5. Min tags filter (all tiers)
+        if (conditions.minTags > 0) {
+            val mentionRegex = Regex("""@(\w+)""")
+            val excluded = excludeHandles.map { it.lowercase() }.toSet()
+            candidates.entries.removeAll { (_, user) ->
+                val text = user.replyText ?: return@removeAll true
+                val tagCount = mentionRegex.findAll(text)
+                    .map { it.groupValues[1].lowercase() }
+                    .filter { it !in excluded }
+                    .distinct()
+                    .count()
+                tagCount < conditions.minTags
+            }
+            auditLog?.logStep(giveawayId, "min_tags_filter", candidates.size, "minTags=${conditions.minTags}")
+        }
+
+        // 6. Fraud filter (Business only)
         if (tierConfig.fraudFilter) {
             val minAge = conditions.minAccountAgeDays.takeIf { it > 0 } ?: tierConfig.minAccountAgeDays
             val minFol = conditions.minFollowers.takeIf { it > 0 } ?: tierConfig.minFollowers
@@ -92,7 +118,7 @@ class PoolBuilder(
             }
         }
 
-        // 5. Cap at tier maxEntries
+        // 7. Cap at tier maxEntries
         val pool = if (candidates.size > maxEntries) {
             candidates.values.take(maxEntries)
         } else {

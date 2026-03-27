@@ -150,6 +150,60 @@ class CommandParserTest {
         assertEquals(0, cmd.conditions.minFollowers)
     }
 
+    // ── Hashtag parsing ────────────────────────────────────────────────────
+
+    @Test
+    fun parseHashtagCondition() {
+        val cmd = CommandParser.parse("@winwithpickr pick #giveaway", "winwithpickr")
+        assertNotNull(cmd)
+        assertEquals("giveaway", cmd.conditions.requiredHashtag)
+    }
+
+    @Test
+    fun parseHashtagWithExplicitKeyword() {
+        val cmd = CommandParser.parse("@winwithpickr pick hashtag #contest", "winwithpickr")
+        assertNotNull(cmd)
+        assertEquals("contest", cmd.conditions.requiredHashtag)
+    }
+
+    @Test
+    fun noHashtagByDefault() {
+        val cmd = CommandParser.parse("@winwithpickr pick", "winwithpickr")
+        assertNotNull(cmd)
+        assertNull(cmd.conditions.requiredHashtag)
+    }
+
+    // ── Tag friends parsing ──────────────────────────────────────────────────
+
+    @Test
+    fun parseMinTags() {
+        val cmd = CommandParser.parse("@winwithpickr pick tag 2", "winwithpickr")
+        assertNotNull(cmd)
+        assertEquals(2, cmd.conditions.minTags)
+    }
+
+    @Test
+    fun parseMinTagsAlternate() {
+        val cmd = CommandParser.parse("@winwithpickr pick min tags 3", "winwithpickr")
+        assertNotNull(cmd)
+        assertEquals(3, cmd.conditions.minTags)
+    }
+
+    @Test
+    fun noMinTagsByDefault() {
+        val cmd = CommandParser.parse("@winwithpickr pick", "winwithpickr")
+        assertNotNull(cmd)
+        assertEquals(0, cmd.conditions.minTags)
+    }
+
+    @Test
+    fun parseCombinedHashtagAndTags() {
+        val cmd = CommandParser.parse("@winwithpickr pick #giveaway tag 2", "winwithpickr")
+        assertNotNull(cmd)
+        assertEquals("giveaway", cmd.conditions.requiredHashtag)
+        assertEquals(2, cmd.conditions.minTags)
+    }
+
     // ── Scheduled delay clamping ─────────────────────────────────────────────
 
     @Test

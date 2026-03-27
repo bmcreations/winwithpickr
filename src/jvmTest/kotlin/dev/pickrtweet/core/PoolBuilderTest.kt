@@ -209,6 +209,101 @@ class PoolBuilderTest {
         assertEquals("legit", result.users[0].username)
     }
 
+    // ── Hashtag filter tests ────────────────────────────────────────────────
+
+    @Test
+    fun `hashtag filter keeps only matching replies`() = runBlocking {
+        val withTag = XUser(id = "u1", username = "alice", replyText = "Love this #giveaway!")
+        val withoutTag = XUser(id = "u2", username = "bob", replyText = "I want to win!")
+        coEvery { dataSource.fetchReplies(any(), any()) } returns listOf(withTag, withoutTag)
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, requiredHashtag = "giveaway"),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertEquals(1, result.users.size)
+        assertEquals("alice", result.users[0].username)
+    }
+
+    @Test
+    fun `hashtag filter is case insensitive`() = runBlocking {
+        val user = XUser(id = "u1", username = "alice", replyText = "#GIVEAWAY here!")
+        coEvery { dataSource.fetchReplies(any(), any()) } returns listOf(user)
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, requiredHashtag = "giveaway"),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertEquals(1, result.users.size)
+    }
+
+    @Test
+    fun `hashtag filter excludes entries with null replyText`() = runBlocking {
+        val noText = XUser(id = "u1", username = "alice")
+        coEvery { dataSource.fetchReplies(any(), any()) } returns listOf(noText)
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, requiredHashtag = "giveaway"),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertTrue(result.users.isEmpty())
+    }
+
+    // ── Min tags filter tests ────────────────────────────────────────────────
+
+    @Test
+    fun `min tags filter keeps replies with enough tags`() = runBlocking {
+        val enough = XUser(id = "u1", username = "alice", replyText = "@friend1 @friend2 entering!")
+        val notEnough = XUser(id = "u2", username = "bob", replyText = "@friend1 entering!")
+        coEvery { dataSource.fetchReplies(any(), any()) } returns listOf(enough, notEnough)
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, minTags = 2),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertEquals(1, result.users.size)
+        assertEquals("alice", result.users[0].username)
+    }
+
+    @Test
+    fun `min tags excludes host and bot handles from count`() = runBlocking {
+        val user = XUser(id = "u1", username = "alice",
+            replyText = "@hostuser @winwithpickr @friend1 entering!")
+        coEvery { dataSource.fetchReplies(any(), any()) } returns listOf(user)
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, minTags = 2),
+            tierConfig = freeTier, giveawayId = "g1",
+            excludeHandles = setOf("hostuser", "winwithpickr"),
+        )
+
+        // Only @friend1 counts → 1 < 2 → excluded
+        assertTrue(result.users.isEmpty())
+    }
+
+    @Test
+    fun `min tags excludes entries with null replyText`() = runBlocking {
+        val noText = XUser(id = "u1", username = "alice")
+        coEvery { dataSource.fetchReplies(any(), any()) } returns listOf(noText)
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, minTags = 1),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertTrue(result.users.isEmpty())
+    }
+
     @Test
     fun `fraud filter skipped when tier fraudFilter is false`() = runBlocking {
         val newAccount = XUser(
