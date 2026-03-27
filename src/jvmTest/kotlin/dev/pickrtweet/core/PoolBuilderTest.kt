@@ -135,6 +135,49 @@ class PoolBuilderTest {
     }
 
     @Test
+    fun `empty replies plus quote requirement returns empty pool`() = runBlocking {
+        coEvery { dataSource.fetchReplies(any(), any()) } returns emptyList()
+        coEvery { dataSource.fetchQuoteTweets(any(), any()) } returns users("alice", "bob")
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, quoteTweet = true),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertTrue(result.users.isEmpty())
+    }
+
+    @Test
+    fun `empty retweet intersection plus quote requirement returns empty pool`() = runBlocking {
+        coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice")
+        coEvery { dataSource.fetchRetweeters(any(), any()) } returns users("bob")  // no overlap with replies
+        coEvery { dataSource.fetchQuoteTweets(any(), any()) } returns users("bob")
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, retweet = true, quoteTweet = true),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertTrue(result.users.isEmpty())
+    }
+
+    @Test
+    fun `retweet plus quote intersection without reply`() = runBlocking {
+        coEvery { dataSource.fetchRetweeters(any(), any()) } returns users("alice", "bob", "carol")
+        coEvery { dataSource.fetchQuoteTweets(any(), any()) } returns users("bob", "dave")
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = false, retweet = true, quoteTweet = true),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertEquals(setOf("bob"), result.users.map { it.username }.toSet())
+    }
+
+    @Test
     fun `quote tweet false does not fetch quotes`() = runBlocking {
         coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice")
 
