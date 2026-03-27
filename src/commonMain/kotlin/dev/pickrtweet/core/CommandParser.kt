@@ -34,9 +34,10 @@ object CommandParser {
 
         val fromClause = fromRegex.find(lower)?.groupValues?.get(1) ?: "replies"
         val sources = fromClause.split("+").map { it.trim() }
-        val reply   = "replies"  in sources || ("retweets" !in sources && "likes" !in sources)
+        val reply   = "replies"  in sources || ("retweets" !in sources && "likes" !in sources && "quotes" !in sources)
         val retweet = "retweets" in sources
         val like    = "likes"    in sources
+        val quoteTweet = "quotes" in sources
 
         val followAccounts = followAccountsRegex.find(lower)
             ?.groupValues?.get(1)?.split(Regex("\\s+"))
@@ -69,7 +70,7 @@ object CommandParser {
         return ParsedCommand(
             winners = winners.coerceAtLeast(1),
             conditions = EntryConditions(
-                reply, retweet, like, followHost, followAccounts,
+                reply, retweet, like, quoteTweet, followHost, followAccounts,
                 minAccountAgeDays, minFollowers, requiredHashtag, minTags,
             ),
             triggerMode = if (scheduledDelayMs != null) TriggerMode.SCHEDULED else triggerMode,

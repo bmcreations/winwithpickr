@@ -11,6 +11,7 @@ import kotlin.time.Duration.Companion.days
 interface PoolDataSource {
     suspend fun fetchReplies(tweetId: String, maxResults: Int): List<XUser>
     suspend fun fetchRetweeters(tweetId: String, maxResults: Int): List<XUser>
+    suspend fun fetchQuoteTweets(tweetId: String, maxResults: Int): List<XUser>
     suspend fun buildFollowerSet(hostId: String): Pair<Set<String>, Boolean>
 }
 
@@ -61,7 +62,24 @@ class PoolBuilder(
             }
         }
 
-        // 3. Follower check (Pro+ only, enforced upstream but double-check)
+        // 3. Intersect/union with quote tweets if required
+        if (conditions.quoteTweet) {
+            val quoters = dataSource.fetchQuoteTweets(parentTweetId, maxEntries)
+            val qtIds = quoters.associateBy { it.id }
+            auditLog?.logStep(giveawayId, "fetch_quotes", quoters.size)
+
+            if (conditions.reply || conditions.retweet) {
+                // Intersect: keep only users already in pool who also quoted
+                candidates.keys.retainAll(qtIds.keys)
+            } else {
+                // Quote-only pool
+                for (u in quoters) {
+                    if (u.id != hostXId) candidates[u.id] = u
+                }
+            }
+        }
+
+        // 4. Follower check (Pro+ only)
         if (conditions.followHost && tierConfig.followerCheck) {
             val (followerSet, isPartial) = dataSource.buildFollowerSet(hostXId)
             followHostPartial = isPartial
@@ -73,7 +91,7 @@ class PoolBuilder(
             )
         }
 
-        // 4. Required hashtag filter (all tiers)
+        // 5. Required hashtag filter (all tiers)
         if (conditions.requiredHashtag != null) {
             val tag = "#${conditions.requiredHashtag!!.lowercase()}"
             candidates.entries.removeAll { (_, user) ->
@@ -82,7 +100,7 @@ class PoolBuilder(
             auditLog?.logStep(giveawayId, "hashtag_filter", candidates.size, "required=$tag")
         }
 
-        // 5. Min tags filter (all tiers)
+        // 6. Min tags filter (all tiers)
         if (conditions.minTags > 0) {
             val mentionRegex = Regex("""@(\w+)""")
             val excluded = excludeHandles.map { it.lowercase() }.toSet()
@@ -98,7 +116,7 @@ class PoolBuilder(
             auditLog?.logStep(giveawayId, "min_tags_filter", candidates.size, "minTags=${conditions.minTags}")
         }
 
-        // 6. Fraud filter (Business only)
+        // 7. Fraud filter (Business only)
         if (tierConfig.fraudFilter) {
             val minAge = conditions.minAccountAgeDays.takeIf { it > 0 } ?: tierConfig.minAccountAgeDays
             val minFol = conditions.minFollowers.takeIf { it > 0 } ?: tierConfig.minFollowers
@@ -118,7 +136,7 @@ class PoolBuilder(
             }
         }
 
-        // 7. Cap at tier maxEntries
+        // 8. Cap at tier maxEntries
         val pool = if (candidates.size > maxEntries) {
             candidates.values.take(maxEntries)
         } else {

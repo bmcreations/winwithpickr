@@ -105,6 +105,48 @@ class PoolBuilderTest {
         coVerify(exactly = 0) { dataSource.buildFollowerSet(any()) }
     }
 
+    // ── Quote tweet pool tests ─────────────────────────────────────────────
+
+    @Test
+    fun `quote-only pool returns quoters`() = runBlocking {
+        coEvery { dataSource.fetchQuoteTweets(any(), any()) } returns users("alice", "bob")
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = false, quoteTweet = true),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertEquals(setOf("alice", "bob"), result.users.map { it.username }.toSet())
+    }
+
+    @Test
+    fun `reply plus quote intersection returns only users in both`() = runBlocking {
+        coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice", "bob", "carol")
+        coEvery { dataSource.fetchQuoteTweets(any(), any()) } returns users("bob", "dave")
+
+        val result = poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, quoteTweet = true),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        assertEquals(setOf("bob"), result.users.map { it.username }.toSet())
+    }
+
+    @Test
+    fun `quote tweet false does not fetch quotes`() = runBlocking {
+        coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice")
+
+        poolBuilder.build(
+            parentTweetId = "t1", hostXId = hostXId,
+            conditions = EntryConditions(reply = true, quoteTweet = false),
+            tierConfig = freeTier, giveawayId = "g1",
+        )
+
+        coVerify(exactly = 0) { dataSource.fetchQuoteTweets(any(), any()) }
+    }
+
     @Test
     fun `host is excluded from pool`() = runBlocking {
         val pool = users("alice") + XUser(id = hostXId, username = "host")

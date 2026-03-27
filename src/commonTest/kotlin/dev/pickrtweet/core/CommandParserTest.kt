@@ -30,6 +30,30 @@ class CommandParserTest {
     }
 
     @Test
+    fun parsePickFromQuotes() {
+        val cmd = CommandParser.parse("@winwithpickr pick from quotes", "winwithpickr")
+        assertNotNull(cmd)
+        assertTrue(cmd.conditions.quoteTweet)
+        assertFalse(cmd.conditions.reply)
+        assertFalse(cmd.conditions.retweet)
+    }
+
+    @Test
+    fun parsePickFromRepliesPlusQuotes() {
+        val cmd = CommandParser.parse("@winwithpickr pick from replies+quotes", "winwithpickr")
+        assertNotNull(cmd)
+        assertTrue(cmd.conditions.reply)
+        assertTrue(cmd.conditions.quoteTweet)
+    }
+
+    @Test
+    fun quoteTweetFalseByDefault() {
+        val cmd = CommandParser.parse("@winwithpickr pick", "winwithpickr")
+        assertNotNull(cmd)
+        assertFalse(cmd.conditions.quoteTweet)
+    }
+
+    @Test
     fun parseWatchCommand() {
         val cmd = CommandParser.parse("@winwithpickr watch", "winwithpickr")
         assertNotNull(cmd)
