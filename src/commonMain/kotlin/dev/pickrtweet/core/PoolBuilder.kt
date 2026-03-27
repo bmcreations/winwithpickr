@@ -60,7 +60,7 @@ class PoolBuilder(
         if (conditions.quoteTweet) {
             val quoters = dataSource.fetchQuoteTweets(parentTweetId, maxEntries)
             auditLog?.logStep(giveawayId, "fetch_quotes", quoters.size)
-            mergePool(candidates, quoters, hostXId, hasExistingPool = candidates.isNotEmpty())
+            mergePool(candidates, quoters, hostXId, hasExistingPool = conditions.reply || conditions.retweet)
         }
 
         // 4. Follower check (Pro+ only)
