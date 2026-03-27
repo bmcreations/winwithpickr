@@ -15,6 +15,10 @@ data class ParseResult(
     val followHost: Boolean = false,
     val followAccounts: Array<String> = emptyArray(),
     val scheduledDelay: String? = null,
+    val minAccountAgeDays: Int = 0,
+    val minFollowers: Int = 0,
+    val requiredHashtag: String? = null,
+    val minTags: Int = 0,
 )
 
 @JsExport
@@ -36,5 +40,9 @@ fun parseCommand(text: String, botHandle: String = "winwithpickr"): ParseResult 
         followHost = cmd.conditions.followHost,
         followAccounts = cmd.conditions.followAccounts.toTypedArray(),
         scheduledDelay = delay,
+        minAccountAgeDays = cmd.conditions.minAccountAgeDays,
+        minFollowers = cmd.conditions.minFollowers,
+        requiredHashtag = cmd.conditions.requiredHashtag,
+        minTags = cmd.conditions.minTags,
     )
 }
