@@ -70,8 +70,16 @@ object CommandParser {
         return ParsedCommand(
             winners = winners.coerceAtLeast(1),
             conditions = EntryConditions(
-                reply, retweet, like, quoteTweet, followHost, followAccounts,
-                minAccountAgeDays, minFollowers, requiredHashtag, minTags,
+                reply = reply,
+                retweet = retweet,
+                like = like,
+                quoteTweet = quoteTweet,
+                followHost = followHost,
+                followAccounts = followAccounts,
+                minAccountAgeDays = minAccountAgeDays,
+                minFollowers = minFollowers,
+                requiredHashtag = requiredHashtag,
+                minTags = minTags,
             ),
             triggerMode = if (scheduledDelayMs != null) TriggerMode.SCHEDULED else triggerMode,
             scheduledDelayMs = scheduledDelayMs,

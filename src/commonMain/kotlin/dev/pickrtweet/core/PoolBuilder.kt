@@ -24,6 +24,10 @@ class PoolBuilder(
     private val auditLog: PoolAuditLog? = null,
 ) {
 
+    companion object {
+        private val MENTION_REGEX = Regex("""@(\w+)""")
+    }
+
     suspend fun build(
         parentTweetId: String,
         hostXId: String,
@@ -48,35 +52,15 @@ class PoolBuilder(
         // 2. Intersect with retweeters if required
         if (conditions.retweet) {
             val retweeters = dataSource.fetchRetweeters(parentTweetId, maxEntries)
-            val rtIds = retweeters.associateBy { it.id }
             auditLog?.logStep(giveawayId, "fetch_retweets", retweeters.size)
-
-            if (conditions.reply) {
-                // Intersect: keep only users who replied AND retweeted
-                candidates.keys.retainAll(rtIds.keys)
-            } else {
-                // Retweet-only pool
-                for (u in retweeters) {
-                    if (u.id != hostXId) candidates[u.id] = u
-                }
-            }
+            mergePool(candidates, retweeters, hostXId, hasExistingPool = conditions.reply)
         }
 
         // 3. Intersect/union with quote tweets if required
         if (conditions.quoteTweet) {
             val quoters = dataSource.fetchQuoteTweets(parentTweetId, maxEntries)
-            val qtIds = quoters.associateBy { it.id }
             auditLog?.logStep(giveawayId, "fetch_quotes", quoters.size)
-
-            if (conditions.reply || conditions.retweet) {
-                // Intersect: keep only users already in pool who also quoted
-                candidates.keys.retainAll(qtIds.keys)
-            } else {
-                // Quote-only pool
-                for (u in quoters) {
-                    if (u.id != hostXId) candidates[u.id] = u
-                }
-            }
+            mergePool(candidates, quoters, hostXId, hasExistingPool = candidates.isNotEmpty())
         }
 
         // 4. Follower check (Pro+ only)
@@ -93,20 +77,19 @@ class PoolBuilder(
 
         // 5. Required hashtag filter (all tiers)
         if (conditions.requiredHashtag != null) {
-            val tag = "#${conditions.requiredHashtag!!.lowercase()}"
+            val tagRegex = Regex("""#${Regex.escape(conditions.requiredHashtag!!)}""", RegexOption.IGNORE_CASE)
             candidates.entries.removeAll { (_, user) ->
-                user.replyText?.lowercase()?.contains(tag) != true
+                user.replyText?.let { tagRegex.containsMatchIn(it) } != true
             }
-            auditLog?.logStep(giveawayId, "hashtag_filter", candidates.size, "required=$tag")
+            auditLog?.logStep(giveawayId, "hashtag_filter", candidates.size, "required=#${conditions.requiredHashtag}")
         }
 
         // 6. Min tags filter (all tiers)
         if (conditions.minTags > 0) {
-            val mentionRegex = Regex("""@(\w+)""")
-            val excluded = excludeHandles.map { it.lowercase() }.toSet()
+            val excluded = excludeHandles
             candidates.entries.removeAll { (_, user) ->
                 val text = user.replyText ?: return@removeAll true
-                val tagCount = mentionRegex.findAll(text)
+                val tagCount = MENTION_REGEX.findAll(text)
                     .map { it.groupValues[1].lowercase() }
                     .filter { it !in excluded }
                     .distinct()
@@ -145,5 +128,21 @@ class PoolBuilder(
 
         auditLog?.logStep(giveawayId, "pool_final", pool.size)
         return PoolResult(users = pool, followHostPartial = followHostPartial)
+    }
+
+    /** Intersect with existing pool, or seed pool if empty. */
+    private fun mergePool(
+        candidates: MutableMap<String, XUser>,
+        users: List<XUser>,
+        hostXId: String,
+        hasExistingPool: Boolean,
+    ) {
+        if (hasExistingPool) {
+            candidates.keys.retainAll(users.map { it.id }.toSet())
+        } else {
+            for (u in users) {
+                if (u.id != hostXId) candidates[u.id] = u
+            }
+        }
     }
 }
