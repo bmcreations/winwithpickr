@@ -3,5 +3,5 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
 }
 
-group   = "dev.pickrtweet"
+group   = "com.winwithpickr"
 version = "0.2.0"

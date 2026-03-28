@@ -4,7 +4,7 @@ plugins {
     `maven-publish`
 }
 
-group   = "dev.pickrtweet"
+group   = "com.winwithpickr"
 version = "0.2.0"
 
 repositories {

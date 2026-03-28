@@ -4,7 +4,7 @@ plugins {
     `maven-publish`
 }
 
-group   = "dev.pickrtweet"
+group   = "com.winwithpickr"
 version = "0.2.0"
 
 repositories {
@@ -36,7 +36,7 @@ kotlin {
 tasks.register<JavaExec>("verifyCli") {
     group = "application"
     description = "Verify a giveaway pick result from the command line"
-    mainClass.set("dev.pickrtweet.core.VerifyCliKt")
+    mainClass.set("com.winwithpickr.core.VerifyCliKt")
     val jvmMain = kotlin.jvm().compilations["main"]
     classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
 }
@@ -47,7 +47,7 @@ tasks.register<Jar>("verifyJar") {
     archiveBaseName.set("pickr-verify")
     archiveClassifier.set("")
     archiveVersion.set("")
-    manifest { attributes["Main-Class"] = "dev.pickrtweet.core.VerifyCliKt" }
+    manifest { attributes["Main-Class"] = "com.winwithpickr.core.VerifyCliKt" }
     val jvmMain = kotlin.jvm().compilations["main"]
     from(jvmMain.output.allOutputs)
     from(configurations.named("jvmRuntimeClasspath").map { config ->
