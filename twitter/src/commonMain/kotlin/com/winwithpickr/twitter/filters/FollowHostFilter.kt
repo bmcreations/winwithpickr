@@ -13,8 +13,8 @@ class FollowHostFilter(private val dataSource: XDataSource) : PoolFilter<XUser> 
         private set
 
     override suspend fun apply(candidates: MutableMap<String, XUser>, context: PipelineContext) {
-        val (followerSet, partial) = dataSource.buildFollowerSet(context.hostId)
+        val (followingCandidates, partial) = dataSource.checkFollowers(context.hostId, candidates.keys.toSet())
         isPartial = partial
-        candidates.keys.retainAll(followerSet)
+        candidates.keys.retainAll(followingCandidates)
     }
 }

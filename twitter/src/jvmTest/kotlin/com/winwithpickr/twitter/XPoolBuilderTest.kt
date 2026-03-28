@@ -157,7 +157,10 @@ class XPoolBuilderTest {
     @Test
     fun followerCheckFiltersNonFollowers() = runBlocking {
         coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice", "bob", "carol")
-        coEvery { dataSource.buildFollowerSet(hostXId) } returns Pair(setOf("id_alice", "id_carol"), false)
+        coEvery { dataSource.checkFollowers(eq(hostXId), any()) } answers {
+            val candidates = secondArg<Set<String>>()
+            Pair(candidates.intersect(setOf("id_alice", "id_carol")), false)
+        }
 
         val conds = EntryConditions(reply = true, followHost = true)
         val (pipeline, followFilter) = builder.buildPipeline(conds, proTier)
@@ -177,13 +180,13 @@ class XPoolBuilderTest {
 
         assertEquals(2, result.users.size)
         assertNull(followFilter)
-        coVerify(exactly = 0) { dataSource.buildFollowerSet(any()) }
+        coVerify(exactly = 0) { dataSource.checkFollowers(any(), any()) }
     }
 
     @Test
     fun partialFollowerSetIsFlagged() = runBlocking {
         coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice")
-        coEvery { dataSource.buildFollowerSet(hostXId) } returns Pair(setOf("id_alice"), true)
+        coEvery { dataSource.checkFollowers(eq(hostXId), any()) } returns Pair(setOf("id_alice"), true)
 
         val conds = EntryConditions(reply = true, followHost = true)
         val (pipeline, followFilter) = builder.buildPipeline(conds, proTier)
@@ -198,9 +201,10 @@ class XPoolBuilderTest {
     fun followAccountsFiltersNonFollowers() = runBlocking {
         coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice", "bob", "carol")
         coEvery { dataSource.resolveHandle("sponsor") } returns "id_sponsor"
-        coEvery { dataSource.fetchFollowing("id_alice") } returns setOf("id_sponsor", "id_other")
-        coEvery { dataSource.fetchFollowing("id_bob") } returns setOf("id_other")
-        coEvery { dataSource.fetchFollowing("id_carol") } returns setOf("id_sponsor")
+        coEvery { dataSource.checkFollowers(eq("id_sponsor"), any()) } answers {
+            val candidates = secondArg<Set<String>>()
+            Pair(candidates.intersect(setOf("id_alice", "id_carol")), false)
+        }
 
         val conds = EntryConditions(reply = true, followAccounts = listOf("sponsor"))
         val (pipeline, _) = builder.buildPipeline(conds, proTier)
@@ -214,8 +218,14 @@ class XPoolBuilderTest {
         coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice", "bob")
         coEvery { dataSource.resolveHandle("s1") } returns "id_s1"
         coEvery { dataSource.resolveHandle("s2") } returns "id_s2"
-        coEvery { dataSource.fetchFollowing("id_alice") } returns setOf("id_s1", "id_s2")
-        coEvery { dataSource.fetchFollowing("id_bob") } returns setOf("id_s1")
+        coEvery { dataSource.checkFollowers(eq("id_s1"), any()) } answers {
+            val candidates = secondArg<Set<String>>()
+            Pair(candidates.intersect(setOf("id_alice", "id_bob")), false)
+        }
+        coEvery { dataSource.checkFollowers(eq("id_s2"), any()) } answers {
+            val candidates = secondArg<Set<String>>()
+            Pair(candidates.intersect(setOf("id_alice")), false)
+        }
 
         val conds = EntryConditions(reply = true, followAccounts = listOf("s1", "s2"))
         val (pipeline, _) = builder.buildPipeline(conds, proTier)
@@ -234,6 +244,74 @@ class XPoolBuilderTest {
 
         assertEquals(2, result.users.size)
         coVerify(exactly = 0) { dataSource.resolveHandle(any()) }
+    }
+
+    @Test
+    fun followAccountsUsesCheckFollowersNotBuildFollowerSet() = runBlocking {
+        coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice", "bob")
+        coEvery { dataSource.resolveHandle("sponsor") } returns "id_sponsor"
+        coEvery { dataSource.checkFollowers(eq("id_sponsor"), any()) } answers {
+            val candidates = secondArg<Set<String>>()
+            Pair(candidates.intersect(setOf("id_alice")), false)
+        }
+
+        val conds = EntryConditions(reply = true, followAccounts = listOf("sponsor"))
+        val (pipeline, _) = builder.buildPipeline(conds, proTier)
+        pipeline.build(context())
+
+        // checkFollowers called (with early exit), not buildFollowerSet
+        coVerify(exactly = 1) { dataSource.checkFollowers(eq("id_sponsor"), any()) }
+        coVerify(exactly = 0) { dataSource.buildFollowerSet(any()) }
+    }
+
+    @Test
+    fun followAccountsPartialIsHandled() = runBlocking {
+        coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice")
+        coEvery { dataSource.resolveHandle("sponsor") } returns "id_sponsor"
+        coEvery { dataSource.checkFollowers(eq("id_sponsor"), any()) } returns Pair(setOf("id_alice"), true)
+
+        val conds = EntryConditions(reply = true, followAccounts = listOf("sponsor"))
+        val (pipeline, _) = builder.buildPipeline(conds, proTier)
+        pipeline.build(context())
+
+        coVerify(exactly = 1) { dataSource.checkFollowers(eq("id_sponsor"), any()) }
+    }
+
+    @Test
+    fun followAccountsUnresolvableHandleSkipsFilter() = runBlocking {
+        coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice", "bob")
+        coEvery { dataSource.resolveHandle("nonexistent") } returns null
+
+        val conds = EntryConditions(reply = true, followAccounts = listOf("nonexistent"))
+        val (pipeline, _) = builder.buildPipeline(conds, proTier)
+        val result = pipeline.build(context())
+
+        assertEquals(2, result.users.size)
+        coVerify(exactly = 0) { dataSource.checkFollowers(any(), any()) }
+    }
+
+    @Test
+    fun followAccountsWithFollowHostBothUseCheckFollowers() = runBlocking {
+        coEvery { dataSource.fetchReplies(any(), any()) } returns users("alice", "bob", "carol")
+        // Host follower check
+        coEvery { dataSource.checkFollowers(eq(hostXId), any()) } answers {
+            val candidates = secondArg<Set<String>>()
+            Pair(candidates.intersect(setOf("id_alice", "id_bob", "id_carol")), false)
+        }
+        // Sponsor account check
+        coEvery { dataSource.resolveHandle("sponsor") } returns "id_sponsor"
+        coEvery { dataSource.checkFollowers(eq("id_sponsor"), any()) } answers {
+            val candidates = secondArg<Set<String>>()
+            Pair(candidates.intersect(setOf("id_alice", "id_carol")), false)
+        }
+
+        val conds = EntryConditions(reply = true, followHost = true, followAccounts = listOf("sponsor"))
+        val (pipeline, followFilter) = builder.buildPipeline(conds, proTier)
+        val result = pipeline.build(context())
+
+        assertEquals(setOf("alice", "carol"), result.users.map { it.username }.toSet())
+        coVerify(exactly = 1) { dataSource.checkFollowers(eq(hostXId), any()) }
+        coVerify(exactly = 1) { dataSource.checkFollowers(eq("id_sponsor"), any()) }
     }
 
     // ── Hashtag filter tests ─────────────────────────────────────────────
