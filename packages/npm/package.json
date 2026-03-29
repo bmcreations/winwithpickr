@@ -1,0 +1,36 @@
+{
+  "name": "@winwithpickr/engine",
+  "version": "0.3.0",
+  "description": "Verifiable random selection engine — deterministic shuffle + pool hashing for giveaway verification",
+  "license": "MIT",
+  "author": "bmcreations",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/winwithpickr/pickr-engine"
+  },
+  "homepage": "https://winwithpickr.com",
+  "keywords": [
+    "giveaway",
+    "verification",
+    "pickr",
+    "winwithpickr",
+    "random",
+    "shuffle",
+    "deterministic"
+  ],
+  "type": "module",
+  "main": "lib/engine.js",
+  "bin": {
+    "pickr-verify": "bin/pickr-verify.mjs"
+  },
+  "files": [
+    "lib/",
+    "bin/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

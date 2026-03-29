@@ -14,6 +14,7 @@ repositories {
 kotlin {
     jvm()
     js(IR) {
+        moduleName = "engine"
         browser()
         binaries.executable()
     }
@@ -54,6 +55,19 @@ tasks.register<Jar>("verifyJar") {
         config.map { if (it.isDirectory) it else zipTree(it) }
     })
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register<Copy>("assembleNpm") {
+    group = "build"
+    description = "Assemble npm package into build/npm-package/"
+    dependsOn("jsBrowserProductionWebpack")
+    from(layout.buildDirectory.file("kotlin-webpack/js/productionExecutable/engine.js")) {
+        into("lib")
+    }
+    from(layout.projectDirectory.dir("packages/npm")) {
+        include("package.json", "bin/**")
+    }
+    into(layout.buildDirectory.dir("npm-package"))
 }
 
 publishing {

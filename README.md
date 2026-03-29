@@ -1,4 +1,4 @@
-# pickr-core
+# pickr-engine
 
 The verifiable giveaway engine behind [@winwithpickr](https://x.com/winwithpickr).
 Open-source, MIT-licensed — audit the algorithm, verify any result, or build on top of it.
@@ -7,7 +7,7 @@ Kotlin Multiplatform (JVM + JS). Zero service dependencies.
 
 ## What this library does
 
-pickr-core is a **pure verification engine**. Given a seed and a list of user IDs, it produces a deterministic winner selection that anyone can reproduce. It has no knowledge of databases, APIs, or the X platform — it just does math.
+pickr-engine is a **pure verification engine**. Given a seed and a list of user IDs, it produces a deterministic winner selection that anyone can reproduce. It has no knowledge of databases, APIs, or any platform — it just does math.
 
 ```
 seed + pool → shuffle → winners
@@ -18,21 +18,48 @@ Same inputs, same outputs, every time. That's the entire contract.
 
 ## How winwithpickr uses it
 
-The [@winwithpickr](https://x.com/winwithpickr) service wraps this library with X API access, a database, and billing — none of which can influence the pick outcome. The service enforces a strict ordering that makes the result independently verifiable:
+The [@winwithpickr](https://x.com/winwithpickr) service wraps this library with platform APIs (X, Telegram), a database, and billing — none of which can influence the pick outcome. The service enforces a strict ordering that makes the result independently verifiable:
 
-1. **Seed committed first** — `SeedGenerator` produces a random 64-char hex seed. The service stores it and anchors the seed hash to Solana _before_ touching the X API — proving the seed existed before the pool was known.
-2. **Pool fetched second** — the service calls the X API to collect replies, retweets, and follower lists. This happens entirely _after_ the seed is locked. pickr-core's `PoolBuilder` handles deduplication and condition intersection, but the X data itself comes from the service layer.
-3. **Deterministic pick** — `SeededRandom.shuffle(pool, seed)` runs the committed seed against the fetched pool. Winners are the first N entries. This is the only step that lives in pickr-core.
+1. **Seed committed first** — `SeedGenerator` produces a random 64-char hex seed. The service stores it and anchors the seed hash to Solana _before_ touching any platform API — proving the seed existed before the pool was known.
+2. **Pool fetched second** — the service calls the platform API to collect entries (replies, retweets, button presses, comments). This happens entirely _after_ the seed is locked.
+3. **Deterministic pick** — `SeededRandom.shuffle(pool, seed)` runs the committed seed against the fetched pool. Winners are the first N entries. This is the only step that lives in pickr-engine.
 4. **Everything published** — the seed, full entry pool, pool hash, and winners are stored and exposed on the result's verification page.
 
 Because step 3 is deterministic and open-source, anyone with the seed and pool can rerun it and confirm the winners match — without trusting the service.
+
+## Install
+
+### Gradle (JVM / Kotlin Multiplatform)
+
+```kotlin
+// build.gradle.kts
+repositories {
+    maven {
+        url = uri("https://maven.pkg.github.com/winwithpickr/*")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GITHUB_TOKEN")
+        }
+    }
+}
+
+dependencies {
+    implementation("com.winwithpickr:engine:0.3.0")
+}
+```
+
+### npm
+
+```bash
+npm install @winwithpickr/engine
+```
 
 ## Verify a result
 
 ### CLI (npm)
 
 ```bash
-npx @winwithpickr/verify \
+npx @winwithpickr/engine verify \
   --seed <64-char-hex> \
   --pool <id,id,id,...> \
   --winners <n> \
@@ -41,7 +68,7 @@ npx @winwithpickr/verify \
 
 ### CLI (Java)
 
-Download `pickr-verify.jar` from [Releases](https://github.com/bmcreations/pickr/releases):
+Download `pickr-verify.jar` from [Releases](https://github.com/winwithpickr/pickr-engine/releases):
 
 ```bash
 java -jar pickr-verify.jar \
@@ -54,48 +81,38 @@ java -jar pickr-verify.jar \
 ### Kotlin
 
 ```kotlin
-// Deterministic shuffle — same seed + pool = same result, always
 val shuffled = SeededRandom.shuffle(pool, seed)
 val winners  = shuffled.take(n)
-
-// Pool hash — SHA-256 of sorted, comma-joined user IDs
-val hash = SeededRandom.poolHash(pool.map { it.id })
+val hash     = SeededRandom.poolHash(pool.map { it.id })
 ```
 
-### JavaScript (browser)
-
-The JS bundle is used on every [@winwithpickr](https://winwithpickr.com) verification page for zero-API client-side verification:
+### JavaScript (browser / Node.js)
 
 ```javascript
-const pickr = require("@winwithpickr/verify");
-const result = pickr.dev.pickrtweet.core.verifyPick(seed, poolIds, winnerCount);
-// result.winners — computed winner IDs
+import { verifyPick } from "@winwithpickr/engine";
+
+const result = verifyPick(seed, poolIds, winnerCount);
+// result.winners  — computed winner IDs
 // result.poolHash — computed SHA-256 pool hash
 ```
 
 ## Architecture
 
-pickr-core is the **open core** — the math that determines who wins. The closed-source service layer handles everything else: talking to X, storing results, billing, and queue orchestration. The boundary is intentional: the service feeds data _into_ pickr-core but cannot alter what comes _out_.
+pickr-engine is the **open core** — the math that determines who wins. Platform-specific SDKs ([pickr-twitter](https://github.com/winwithpickr/pickr-twitter), [pickr-telegram](https://github.com/winwithpickr/pickr-telegram)) handle platform integration. The closed-source server handles everything else.
 
 ```
-                    pickr-core (open, MIT)
-                    ─────────────────────
-                    SeededRandom.shuffle()    ← deterministic pick
-                    SeededRandom.poolHash()   ← verifiable fingerprint
-                    SeedGenerator             ← cryptographic seed (JVM)
-                    CommandParser             ← parse @winwithpickr text
-                    PoolBuilder               ← dedup, intersect, filter
-                    ReplyFormatter            ← format result tweets
-                    Models                    ← Tier, XUser, conditions
+              pickr-engine (open, MIT)
+              ─────────────────────────
+              SeededRandom.shuffle()    ← deterministic pick
+              SeededRandom.poolHash()   ← verifiable fingerprint
+              SeedGenerator             ← cryptographic seed (JVM)
+              PoolPipeline              ← source → filter → cap
+              Candidate, TierConfig     ← shared models
 
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-   pickr service        verify page          this CLI
-   (closed)             (browser JS)         (npm / JAR)
-   commits seed         loads pool+seed      takes pool+seed
-   fetches pool         calls verifyPick()   calls verifyPick()
-   calls shuffle()      shows match/mismatch shows match/mismatch
-   posts result
+    ┌──────────────┼──────────────┐
+    │              │              │
+pickr-twitter  pickr-telegram  verify CLI
+(X SDK)        (Telegram SDK)  (npm / JAR)
 ```
 
 ## Modules
@@ -104,10 +121,10 @@ pickr-core is the **open core** — the math that determines who wins. The close
 |---|---|---|
 | `SeededRandom` | common | Deterministic Fisher-Yates shuffle, SHA-256 pool hash |
 | `SeedGenerator` | JVM | Cryptographic seed generation (`SecureRandom`) |
-| `CommandParser` | common | Parses `@winwithpickr` mention text into `ParsedCommand` |
-| `PoolBuilder` | common | Entry pool construction, condition intersection, follower filtering |
-| `ReplyFormatter` | JVM | Result tweet formatting, signed upgrade URLs |
-| `OAuth1Signer` | JVM | HMAC-SHA1 OAuth 1.0a signing for X API v2 |
+| `PoolPipeline` | common | Source → filter → cap pipeline for entry pools |
+| `PoolSource` | common | Interface for entry pool data sources |
+| `PoolFilter` | common | Interface for entry pool filters |
+| `PipelineContext` | common | Shared state across pipeline execution |
 
 ### Models (common)
 
@@ -115,46 +132,24 @@ pickr-core is the **open core** — the math that determines who wins. The close
 |---|---|
 | `Tier` | `FREE`, `PRO`, `BUSINESS` |
 | `TierConfig` | Entry/winner limits, feature flags, monthly pick limit, overage rate |
-| `ParsedCommand` | Parsed command: winner count, conditions, trigger mode |
-| `EntryConditions` | Reply, retweet, like, followHost, followAccounts flags |
-| `XUser` | X user identity (id, username, public metrics) |
-| `PoolResult` | Final entry pool with users and partial-follower flag |
-
-## Commands
-
-Reply to any giveaway tweet with:
-
-| Command | What it does |
-|---|---|
-| `@winwithpickr pick` | Pick 1 winner from replies |
-| `@winwithpickr pick 3` | Pick 3 winners |
-| `@winwithpickr pick from replies+retweets` | Pick from both pools (intersection) |
-| `@winwithpickr pick followers only` | Only pick from host's followers (Pro+) |
-| `@winwithpickr watch` | Watch giveaway, pick when host triggers |
-
-### Watch trigger phrases
-
-When a watched giveaway host replies or quote-RTs with any of these, the pick fires automatically:
-
-> "pick a winner", "picking a winner", "draw a winner", "end giveaway",
-> "giveaway over", "giveaway closed", "winner time", "time to pick"
+| `Candidate` | Platform-agnostic entry (id, username) |
+| `TriggerMode` | `IMMEDIATE`, `WATCH`, `SCHEDULED` |
 
 ## Building
 
 ```bash
-# Run all tests (JVM + JS)
-./gradlew :pickr-core:allTests
+# Run all tests
+./gradlew jvmTest
 
 # Build standalone JAR
-./gradlew :pickr-core:verifyJar
-# → pickr-core/build/libs/pickr-verify.jar
+./gradlew verifyJar
+# → build/libs/pickr-verify.jar
 
-# Build npm package
-./gradlew :pickr-core:assembleNpm
-# → pickr-core/build/npm-package/
+# Build JS bundle
+./gradlew jsBrowserProductionWebpack
 
 # Run verification locally via Gradle
-./gradlew :pickr-core:verifyCli \
+./gradlew verifyCli \
   --args="--seed <hex> --pool <ids> --winners <n>"
 ```
 
@@ -183,16 +178,15 @@ Every winwithpickr pick anchors two hashes to Solana via `SolanaAnchor`:
 1. **Seed commit** — the seed hash is written to Solana _before_ the pool is fetched, proving the seed existed before entries were known.
 2. **Result anchor** — the pool hash and winners hash are written _after_ the pick, creating a tamper-proof record of the outcome.
 
-The on-chain timestamps make it independently verifiable that the ordering was respected. Blockchain anchoring is **not** part of pickr-core — it lives entirely in the service layer. Every verification page links to both transactions on Solscan.
+Blockchain anchoring is **not** part of pickr-engine — it lives entirely in the service layer. Every verification page links to both transactions on Solscan.
 
-## Dependencies
+## Related repos
 
-Zero service dependencies. Pure Kotlin with only:
-- `kotlinx-serialization-json`
-- `kotlinx-datetime`
-- `kotlinx-coroutines-core`
-
-No Ktor, no database, no Redis, no HTTP clients.
+| Repo | Description |
+|---|---|
+| [pickr-engine](https://github.com/winwithpickr/pickr-engine) | This repo — platform-agnostic core |
+| [pickr-twitter](https://github.com/winwithpickr/pickr-twitter) | X/Twitter SDK — command parser, pool builder, reply formatter |
+| [pickr-telegram](https://github.com/winwithpickr/pickr-telegram) | Telegram SDK — command parser, pool builder, Mini App support |
 
 ## License
 
