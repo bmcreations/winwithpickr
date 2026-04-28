@@ -9,4 +9,5 @@ data class ParsedCommand(
     val triggerMode: TriggerMode = TriggerMode.IMMEDIATE,
     val scheduledDelayMs: Long? = null,
     val selectionMode: SelectionMode = SelectionMode.RANDOM,
+    val earlyBonus: Boolean = true,
 )
